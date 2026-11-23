@@ -302,6 +302,8 @@ def main():
                     help="path to mihomo; omit for TCP+GeoIP only")
     ap.add_argument("--speed-top", type=int, default=0,
                     help="measure throughput for the N lowest-delay nodes")
+    ap.add_argument("--speed-budget", type=int, default=300,
+                    help="stop the throughput stage after this many seconds")
     ap.add_argument("--tcp-timeout", type=float, default=2.5)
     ap.add_argument("--probe-ttl", type=int, default=180,
                     help="reuse a successful probe for this many minutes")
@@ -330,7 +332,7 @@ def main():
             batch, probe_cache, ttl_min=a.probe_ttl, max_miss=a.max_miss)
         if fresh:
             prober.probe(fresh, binary=a.probe_binary, tcp_timeout=a.tcp_timeout,
-                         speed_top=a.speed_top)
+                         speed_top=a.speed_top, speed_budget=a.speed_budget)
         probe_cache = prober.record(probe_cache, fresh)
         prober.save_cache(probe_cache)
         survivors = [r for r in fresh if r.get("alive")] + reused

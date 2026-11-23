@@ -127,8 +127,8 @@ jobs:
             flags="--probe --probe-limit $PLIMIT"   # TCP + GeoIP only
           fi
           echo "probe flags: ${flags:-<none>}"
-          python organize.py --cache --health "$HEALTH" --speed "$SPEED" $flags
-          python report.py
+          python -u organize.py --cache --health "$HEALTH" --speed "$SPEED" $flags
+          python -u report.py
 
       - name: Publish to gist
         env:
@@ -139,7 +139,7 @@ jobs:
             echo "skipping publish: GIST_TOKEN secret is not set" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          python tools/publish.py --gist "$GIST_ID" --file data/organised.yaml
+          python -u tools/publish.py --gist "$GIST_ID" --file data/organised.yaml
 
       - name: Keep the bundle as a run artifact
         if: ${{ always() }}
@@ -168,4 +168,4 @@ jobs:
 
       - name: Job summary
         if: ${{ always() }}
-        run: python tools/summary_md.py >> "$GITHUB_STEP_SUMMARY"
+        run: python -u tools/summary_md.py >> "$GITHUB_STEP_SUMMARY"

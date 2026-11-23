@@ -65,7 +65,7 @@ def stage_tcp(recs, workers=128, timeout=2.5):
             else:
                 r["alive"] = True
                 alive += 1
-    print(f"  tcp: {alive}/{len(recs)} reachable")
+    print(f"  tcp: {alive}/{len(recs)} reachable", flush=True)
     return [r for r in recs if r.get("alive")]
 
 
@@ -105,7 +105,7 @@ def stage_geo(recs):
         if cc:
             r["md"]["region"], r["md"]["region_source"] = cc, "geoip"
             filled += 1
-    print(f"  geo: filled {filled} regions from {len(cache)} endpoints")
+    print(f"  geo: filled {filled} regions from {len(cache)} endpoints", flush=True)
 
 
 # -------------------------------------------------------- stage 3: mihomo probe
@@ -172,7 +172,7 @@ class Mihomo:
     def select(self, name):
         self.api("PUT", "/proxies/PROBE", {"name": name}, timeout=10)
 
-    def speed(self, name, limit_bytes=2_000_000, timeout=20):
+    def speed(self, name, limit_bytes=2_000_000, timeout=12):
         """Throughput in MB/s through the node, using the mixed-port inbound."""
         try:
             self.select(name)
@@ -275,7 +275,7 @@ def _probe_part(part, binary, workers, timeout_ms, depth=0):
             r["verified"] = d is not None
             if d is not None:
                 out.append(r)
-        print(f"  mihomo: {sum(1 for d in delays if d is not None)}/{len(part)} alive")
+        print(f"  mihomo: {sum(1 for d in delays if d is not None)}/{len(part)} alive", flush=True)
         return out
     finally:
         if inst:
@@ -284,7 +284,7 @@ def _probe_part(part, binary, workers, timeout_ms, depth=0):
 
 
 def stage_mihomo(recs, binary, chunk=1200, workers=24, timeout_ms=3000,
-                 speed_top=0, speed_bytes=2_000_000):
+                 speed_top=0, speed_bytes=2_000_000, speed_budget=300):
     if not binary or not os.path.exists(binary):
         print(f"  mihomo: skipped (binary not found: {binary})")
         return recs
@@ -303,13 +303,17 @@ def stage_mihomo(recs, binary, chunk=1200, workers=24, timeout_ms=3000,
         top = sorted(alive, key=lambda r: r.get("delay_ms") or 9999)[:speed_top]
         tmp = tempfile.mkdtemp(prefix="speed-")
         inst = None
+        deadline = time.monotonic() + max(0, speed_budget)
         try:
             inst = Mihomo(binary, [r["p"] for r in top], tmp)
             if inst.wait_ready():
                 for i, r in enumerate(top, 1):
+                    if time.monotonic() > deadline:
+                        print(f"  speed: budget {speed_budget}s exhausted at {i - 1}/{len(top)}")
+                        break
                     r["speed_mbps"] = inst.speed(r["p"]["name"], speed_bytes)
                     if i % 25 == 0:
-                        print(f"  speed: {i}/{len(top)}")
+                        print(f"  speed: {i}/{len(top)}", flush=True)
         finally:
             if inst:
                 inst.close()
@@ -319,7 +323,7 @@ def stage_mihomo(recs, binary, chunk=1200, workers=24, timeout_ms=3000,
 
 # ---------------------------------------------------------------- entry point
 def probe(recs, binary=None, tcp_timeout=2.5, workers=128, chunk=1200,
-          delay_workers=24, speed_top=0, geo=True, verbose=True):
+          delay_workers=24, speed_top=0, speed_budget=300, geo=True, verbose=True):
     """Probe `recs` (list of {"p": proxy, "md": meta}) in place; returns survivors."""
     if not recs:
         return recs
@@ -333,7 +337,7 @@ def probe(recs, binary=None, tcp_timeout=2.5, workers=128, chunk=1200,
             r["verified"] = True     # tcp-only mode: reachability is all we have
     if binary:
         recs = stage_mihomo(recs, binary, chunk=chunk, workers=delay_workers,
-                            speed_top=speed_top)
+                            speed_top=speed_top, speed_budget=speed_budget)
     return recs
 
 
