@@ -17,7 +17,7 @@ Standalone use is supported, but organize.py drives it via --probe/--probe-limit
 
   python tools/probe.py --input data/organised.yaml --limit 200 --binary /tmp/mihomo
 """
-import argparse, json, os, shutil, socket, subprocess, sys, tempfile, time
+import argparse, base64, json, os, re, shutil, socket, subprocess, sys, tempfile, time
 import urllib.error, urllib.parse, urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
@@ -134,9 +134,11 @@ class Mihomo:
         self.cfg_path = os.path.join(workdir, "probe.yaml")
         with open(self.cfg_path, "w", encoding="utf-8") as f:
             yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
+        self.log_path = os.path.join(workdir, "mihomo.log")
+        self.log = open(self.log_path, "wb")
         self.proc = subprocess.Popen(
             [binary, "-f", self.cfg_path, "-d", workdir],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            stdout=self.log, stderr=self.log)
 
     def wait_ready(self, timeout=15):
         t0 = time.monotonic()
@@ -185,7 +187,20 @@ class Mihomo:
         except Exception:
             return None
 
+    def why(self):
+        try:
+            self.log.flush()
+            with open(self.log_path, "rb") as f:
+                lines = f.read().decode("utf-8", "ignore").strip().splitlines()
+            return " | ".join(lines[-2:])[:300]
+        except Exception:
+            return ""
+
     def close(self):
+        try:
+            self.log.close()
+        except Exception:
+            pass
         try:
             self.proc.terminate()
             self.proc.wait(timeout=10)
@@ -208,36 +223,80 @@ def unique_names(recs):
     return out
 
 
+BAD_TYPES = {"", None}
+
+
+def _valid_reality(p):
+    """mihomo aborts the whole config on a malformed REALITY short-id/public-key."""
+    ro = p.get("reality-opts")
+    if not isinstance(ro, dict):
+        return True
+    sid = str(ro.get("short-id") or "")
+    if sid and (len(sid) % 2 or not re.fullmatch(r"[0-9a-fA-F]+", sid)):
+        return False
+    pk = str(ro.get("public-key") or "")
+    if pk:
+        try:
+            pad = pk + "=" * (-len(pk) % 4)
+            if len(base64.b64decode(pad, validate=True)) != 32:
+                return False
+        except Exception:
+            return False
+    return True
+
+
+def _probe_part(part, binary, workers, timeout_ms, depth=0):
+    """Probe one batch; on config failure split in half and retry.
+
+    A single malformed proxy makes mihomo refuse the whole file, so bisecting is
+    the only way to keep the rest of the batch testable.
+    """
+    tmp = tempfile.mkdtemp(prefix="probe-")
+    inst = None
+    try:
+        inst = Mihomo(binary, [r["p"] for r in part], tmp)
+        if not inst.wait_ready():
+            why = inst.why()
+            if len(part) > 64 and depth < 6:
+                half = len(part) // 2
+                print(f"  mihomo: config rejected ({len(part)} nodes), splitting: {why}")
+                return (_probe_part(part[:half], binary, workers, timeout_ms, depth + 1) +
+                        _probe_part(part[half:], binary, workers, timeout_ms, depth + 1))
+            print(f"  mihomo: cannot load {len(part)} nodes, keeping tcp result: {why}")
+            for r in part:
+                r["alive"] = True          # tcp said yes; keep, but unverified
+            return part
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            delays = list(ex.map(lambda r: inst.delay(r["p"]["name"], timeout_ms), part))
+        out = []
+        for r, d in zip(part, delays):
+            r["delay_ms"] = d
+            r["alive"] = d is not None
+            if d is not None:
+                out.append(r)
+        print(f"  mihomo: {sum(1 for d in delays if d is not None)}/{len(part)} alive")
+        return out
+    finally:
+        if inst:
+            inst.close()
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def stage_mihomo(recs, binary, chunk=1200, workers=24, timeout_ms=3000,
                  speed_top=0, speed_bytes=2_000_000):
     if not binary or not os.path.exists(binary):
         print(f"  mihomo: skipped (binary not found: {binary})")
         return recs
-    recs = unique_names(recs)
+    usable = [r for r in recs
+              if r["p"].get("type") not in BAD_TYPES and _valid_reality(r["p"])]
+    skipped = len(recs) - len(usable)
+    if skipped:
+        print(f"  mihomo: skipped {skipped} nodes mihomo would refuse to load "
+              f"(missing type / bad REALITY args)")
+    recs = unique_names(usable)
     alive = []
     for start in range(0, len(recs), chunk):
-        part = recs[start:start + chunk]
-        tmp = tempfile.mkdtemp(prefix="probe-")
-        inst = None
-        try:
-            inst = Mihomo(binary, [r["p"] for r in part], tmp)
-            if not inst.wait_ready():
-                print(f"  mihomo: failed to start (chunk {start}); keeping tcp result")
-                alive.extend(part)
-                continue
-            with ThreadPoolExecutor(max_workers=workers) as ex:
-                delays = list(ex.map(lambda r: inst.delay(r["p"]["name"], timeout_ms), part))
-            for r, d in zip(part, delays):
-                r["delay_ms"] = d
-                r["alive"] = d is not None
-                if d is not None:
-                    alive.append(r)
-            print(f"  mihomo: chunk {start//chunk + 1} -> "
-                  f"{sum(1 for d in delays if d is not None)}/{len(part)} alive")
-        finally:
-            if inst:
-                inst.close()
-            shutil.rmtree(tmp, ignore_errors=True)
+        alive.extend(_probe_part(recs[start:start + chunk], binary, workers, timeout_ms))
 
     if speed_top and alive:
         top = sorted(alive, key=lambda r: r.get("delay_ms") or 9999)[:speed_top]
