@@ -22,6 +22,16 @@ on:
         type: choice
         options: [refresh, full]
         default: refresh
+      probe:
+        description: "actively test nodes (TCP + GeoIP + mihomo delay/speed)"
+        type: boolean
+        default: true
+      probe_limit:
+        description: "how many nodes to probe per run"
+        default: "1200"
+      speed_top:
+        description: "measure throughput for the N lowest-delay nodes (0 = off)"
+        default: "120"
 
 concurrency:
   group: harvest
@@ -81,13 +91,41 @@ jobs:
           python churn.py
           python formats.py
 
+      - name: Install probe toolchain
+        if: ${{ inputs.probe == '' || inputs.probe }}
+        run: |
+          pip install maxminddb
+          mkdir -p "$RUNNER_TEMP/probe"
+          MIHOMO_VERSION=v1.19.34
+          curl -sSLf -o /tmp/mihomo.gz             "https://github.com/MetaCubeX/mihomo/releases/download/${MIHOMO_VERSION}/mihomo-linux-amd64-compatible-${MIHOMO_VERSION}.gz"
+          gunzip -f /tmp/mihomo.gz && chmod +x /tmp/mihomo
+          mv /tmp/mihomo "$RUNNER_TEMP/probe/mihomo"
+          # DB-IP lite country (CC BY 4.0); fall back one month if not published yet
+          for M in $(date -u +%Y-%m) $(date -u -d '1 month ago' +%Y-%m); do
+            if curl -sSLf -o /tmp/dbip.gz "https://download.db-ip.com/free/dbip-country-lite-${M}.mmdb.gz"; then
+              gunzip -f /tmp/dbip.gz && mv /tmp/dbip.mmdb data/geoip.mmdb && break
+            fi
+          done
+          echo "MIHOMO_BIN=$RUNNER_TEMP/probe/mihomo" >> "$GITHUB_ENV"
+          "$RUNNER_TEMP/probe/mihomo" -v | head -1
+
       - name: Organise
         env:
           HEALTH: ${{ inputs.health || '30' }}
           SPEED: ${{ inputs.speed || '1' }}
+          PROBE: ${{ inputs.probe == '' || inputs.probe }}
+          PLIMIT: ${{ inputs.probe_limit || '1200' }}
+          STOP: ${{ inputs.speed_top || '120' }}
         run: |
           cd tools
-          python organize.py --cache --health "$HEALTH" --speed "$SPEED"
+          flags=""
+          if [ "$PROBE" = "true" ] && [ -n "$MIHOMO_BIN" ]; then
+            flags="--probe --probe-limit $PLIMIT --speed-top $STOP"
+          elif [ "$PROBE" = "true" ]; then
+            flags="--probe --probe-limit $PLIMIT"   # TCP + GeoIP only
+          fi
+          echo "probe flags: ${flags:-<none>}"
+          python organize.py --cache --health "$HEALTH" --speed "$SPEED" $flags
           python report.py
 
       - name: Publish to gist
@@ -110,6 +148,7 @@ jobs:
             data/organised.yaml
             data/summary.json
             data/organise_report.json
+            data/probe.json
           retention-days: 7
           if-no-files-found: warn
 

@@ -190,24 +190,39 @@ def organise(rows, health_min=None, speed_min=None, drop=("http", "socks5", "nul
         rec = {"owner": owner, "gid": gid, "p": p, "md": md}
         seen[fp] = rec
         kept.append(rec)
-    # rank per region
+    kept = rank_and_rename(kept)
+    return kept, stat
+
+
+def rank_and_rename(kept):
+    """Sort each region and write the display name.
+
+    Order: measured delay (probed), then measured throughput, then the values the
+    publisher advertised. Called twice when probing - once before, once after.
+    """
     by = collections.defaultdict(list)
     for r in kept:
         by[r["md"]["region"] or "??"].append(r)
     for reg, lst in by.items():
-        lst.sort(key=lambda r: (-(r["md"]["health"] or 0), -(r["md"]["speed"] or 0)))
+        lst.sort(key=lambda r: (r.get("delay_ms") or 10 ** 6,
+                                -(r.get("speed_mbps") or 0),
+                                -(r["md"]["speed"] or 0),
+                                -(r["md"]["health"] or 0)))
+        flag = REGIONS.get(reg, ("🏳️", "未知"))[0]
         for i, r in enumerate(lst, 1):
-            flag, cn = REGIONS.get(reg, ("🏳️", "未知"))
             bits = [f"{flag}{reg}_{i:02d}"]
-            if r["md"]["speed"]:
-                bits.append(f"{r['md']['speed']:.1f}MB/s")
-            if r["md"]["health"] is not None:
+            mbps = r.get("speed_mbps") or r["md"]["speed"]
+            if mbps:
+                bits.append(f"{mbps:.1f}MB/s")
+            if r.get("delay_ms"):
+                bits.append(f"{r['delay_ms']}ms")
+            elif r["md"]["health"] is not None:
                 bits.append(f"{r['md']['health']}%")
             if r["md"]["line"]:
                 bits.append(r["md"]["line"])
             bits.extend(TAG_DISPLAY.get(t, t.upper()) for t in r["md"]["unlock"][:3])
             r["new_name"] = "|".join(bits)
-    return kept, stat
+    return kept
 
 
 RULE_PROVIDERS = {
@@ -221,7 +236,9 @@ RULE_PROVIDERS = {
 
 
 def emit(kept, path, with_groups=True, min_region=5, max_regions=12):
-    kept = sorted(kept, key=lambda r: (r["md"]["region"] or "ZZ", -(r["md"]["speed"] or 0)))
+    kept = sorted(kept, key=lambda r: (r["md"]["region"] or "ZZ",
+                                       r.get("delay_ms") or 10 ** 6,
+                                       -(r.get("speed_mbps") or r["md"]["speed"] or 0)))
     proxies = []
     for r in kept:
         p = dict(r["p"])
@@ -277,6 +294,15 @@ def main():
     ap.add_argument("--min-region", type=int, default=5,
                     help="regions with fewer nodes go into a single 🌍 其他 group")
     ap.add_argument("--flat", default=os.path.join(DATA, "organized-all.yaml"))
+    ap.add_argument("--probe", action="store_true",
+                    help="actively test nodes (TCP + GeoIP + mihomo delay/speed)")
+    ap.add_argument("--probe-limit", type=int, default=1200,
+                    help="probe at most N nodes, best published signal first")
+    ap.add_argument("--probe-binary", default=os.environ.get("MIHOMO_BIN"),
+                    help="path to mihomo; omit for TCP+GeoIP only")
+    ap.add_argument("--speed-top", type=int, default=0,
+                    help="measure throughput for the N lowest-delay nodes")
+    ap.add_argument("--tcp-timeout", type=float, default=2.5)
     a = ap.parse_args()
     feeds = load("feeds.json", {})
     if a.cache:
@@ -285,6 +311,26 @@ def main():
     print(f"loaded {len(rows)} nodes from {len(feeds)} feeds")
     kept, stat = organise(rows, a.health, a.speed)
     print("funnel:", dict(stat), "-> kept", len(kept))
+
+    if a.probe and kept:
+        import probe as prober
+        # probe the most promising nodes first: published speed, then health
+        kept.sort(key=lambda r: (-(r["md"]["speed"] or 0), -(r["md"]["health"] or 0)))
+        batch = kept[:a.probe_limit]
+        untested = kept[a.probe_limit:]
+        survivors = prober.probe(batch, binary=a.probe_binary, tcp_timeout=a.tcp_timeout,
+                                 speed_top=a.speed_top)
+        dropped = len(batch) - len(survivors)
+        stat["probe_dropped"] = dropped
+        stat["probe_untested"] = len(untested)
+        for r in survivors:
+            if r.get("speed_mbps"):
+                r["md"]["speed"] = r["speed_mbps"]
+        kept = rank_and_rename(survivors + untested)
+        print("probe:", prober.report(survivors),
+              f"dropped {dropped}, untested {len(untested)}")
+        save("probe.json", prober.report(survivors))
+
     n = emit(kept, a.out, min_region=a.min_region, max_regions=a.max_regions)
     emit(kept, a.flat, with_groups=False)
     regs = collections.Counter(r["md"]["region"] or "??" for r in kept)

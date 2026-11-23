@@ -17,6 +17,7 @@ def load(name):
 def main():
     s = load("summary.json")
     r = load("organise_report.json")
+    p = load("probe.json")
     print("### harvest snapshot\n")
     if s:
         print(f"- feeds: **{s['feeds']}**, nodes: **{s['nodes_total']}**, "
@@ -33,6 +34,11 @@ def main():
         regs = sorted(r.get("regions", {}).items(), key=lambda kv: -kv[1])[:6]
         if regs:
             print(f"- top regions: {', '.join(f'{k} {v}' for k, v in regs)}")
+    if p:
+        print(f"\n- probed alive: **{p['alive']}**, "
+              f"median delay: {p.get('delay_median_ms')} ms, "
+              f"median speed: {p.get('speed_median')} MB/s, "
+              f"regions from GeoIP: {p.get('regions_from_geoip')}")
     if not s and not r:
         print("- no data yet (pipeline step failed before report.py)")
 
