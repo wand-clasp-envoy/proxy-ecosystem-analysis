@@ -98,6 +98,12 @@ TCP 可达        577 / 800   (72%)
 
 实测同一批 60 条连跑两次：第一轮 `probed 60, alive 4`，第二轮 `probed 0, reused 4, cooling 56` —— 第二轮零网络开销。
 
+两个工程细节（都踩过）：
+
+- **mihomo 会因单条坏节点拒绝整个配置**（实测报错 `Parse config error: proxy 365: invalid REALITY short ID`）。现在先过滤 REALITY `short-id`/`public-key` 不合法的节点（本语料约 7%），配置仍被拒时二分重试，并把 mihomo 的 stderr 打出来。
+- **只有协议级验证通过才写 `last_ok`**：只过了 TCP 的节点下一轮会重测，不会被当成"已验证"缓存 3 小时。
+- **吞吐阶段有预算**（`--speed-budget 300` 秒）：延迟低但卡死的节点最多耽误 5 分钟，不会把一轮跑成半小时。
+
 成本：mihomo（约 22 MB，下载 5 s）+ DB-IP（约 4 MB）。CI 里每一步都做了下载失败降级：拿不到 mihomo 就只跑 TCP+GeoIP，拿不到 mmdb 就跳过 GeoIP。
 
 > 本机在受限网络里跑 probe 没意义：本地实测 1.1.1.1:443 都连不上，可用率会被严重低估。要么在 CI 跑，要么在境外 VPS 跑。
