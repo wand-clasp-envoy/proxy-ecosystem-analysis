@@ -49,6 +49,15 @@ def main():
     with open(os.path.join(DOCS, "feeds.md"), "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
 
+    if not rows:
+        placeholder = "# 采集到的节点源（gist feed）一览\n\n本轮没有采集到任何源。\n"
+        with open(os.path.join(DOCS, "feeds.md"), "w", encoding="utf-8") as f:
+            f.write(placeholder)
+        with open(os.path.join(DATA, "summary.json"), "w", encoding="utf-8") as f:
+            json.dump({"feeds": 0}, f)
+        print("no feeds - wrote placeholder docs")
+        return
+
     ns = [r["n"] for r in rows]
     surv = [r["surv"] for r in rows if r["surv"] is not None]
     cad = [r["cadence"] for r in rows if r["cadence"]]
@@ -56,10 +65,11 @@ def main():
     summary = {
         "feeds": len(rows), "nodes_total": sum(ns),
         "nodes_median": st.median(ns), "nodes_p90": q(ns, .9), "nodes_max": max(ns),
-        "surv_median": st.median(surv), "surv_mean": st.mean(surv),
-        "surv_low_share": sum(1 for s in surv if s <= .2) / len(surv),
-        "surv_high_share": sum(1 for s in surv if s >= .8) / len(surv),
-        "cadence_median_min": st.median(cad), "cadence_p10": q(cad, .1), "cadence_p90": q(cad, .9),
+        "surv_median": st.median(surv) if surv else 0, "surv_mean": st.mean(surv) if surv else 0,
+        "surv_low_share": sum(1 for s in surv if s <= .2) / len(surv) if surv else 0,
+        "surv_high_share": sum(1 for s in surv if s >= .8) / len(surv) if surv else 0,
+        "cadence_median_min": st.median(cad) if cad else 0,
+        "cadence_p10": q(cad, .1) if cad else 0, "cadence_p90": q(cad, .9) if cad else 0,
         "trio_feeds": len(fmt), "b64_exact_feeds": sum(1 for r in fmt.values() if r["uri"] == r["nodes"]),
         "templates": {f"{r['groups']}/{r['rules']}": sum(1 for x in fmt.values()
                                                        if (x["groups"], x["rules"]) == (r["groups"], r["rules"]))

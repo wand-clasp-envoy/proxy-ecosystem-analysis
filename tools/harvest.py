@@ -110,7 +110,10 @@ def cmd_meta():
         try:
             j = json.loads(get(f"https://api.github.com/gists/{c['id']}"))
         except urllib.error.HTTPError as e:
-            print(f"  {c['owner']}/{c['id']}: HTTP {e.code}")
+            hint = ""
+            if e.code == 403 and "Bearer" in (os.environ.get("GH_TOKEN") or ""):
+                hint = "  <- Actions GITHUB_TOKEN cannot read user gists; set a PAT as GH_PAT"
+            print(f"  {c['owner']}/{c['id']}: HTTP {e.code}{hint}")
             continue
         except Exception as e:
             print(f"  {c['owner']}/{c['id']}: ERR {e}")

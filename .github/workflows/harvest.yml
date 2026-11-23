@@ -45,22 +45,24 @@ jobs:
       - name: Install deps
         run: pip install -r requirements.txt
 
-      # GITHUB_TOKEN is enough to read public gists (1000 req/h per repo).
-      # Add the optional GH_PAT secret when that ceiling is too low.
+      # NOTE: GITHUB_TOKEN (the Actions app token) CANNOT read user gists - it
+      # returns 403. A PAT with the `gist` scope is required here.
+      # GH_PAT and GIST_TOKEN are interchangeable; the first one set wins.
       - name: Collect feeds
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GIST_TOKEN }}
           PAGES: ${{ inputs.pages || '3' }}
         run: |
           cd tools
           python harvest.py search --pages "$PAGES"
           python harvest.py meta
           python fetch_nodes.py
+          python check_feeds.py
 
       - name: Analytics (full mode only)
         if: ${{ inputs.mode == 'full' }}
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GIST_TOKEN }}
         run: |
           cd tools
           python daily.py
