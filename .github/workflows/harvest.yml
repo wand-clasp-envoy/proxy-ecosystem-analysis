@@ -103,7 +103,7 @@ jobs:
           # DB-IP lite country (CC BY 4.0); fall back one month if not published yet
           for M in $(date -u +%Y-%m) $(date -u -d '1 month ago' +%Y-%m); do
             if curl -sSLf -o /tmp/dbip.gz "https://download.db-ip.com/free/dbip-country-lite-${M}.mmdb.gz"; then
-              gunzip -f /tmp/dbip.gz && mv /tmp/dbip.mmdb data/geoip.mmdb && break
+              gunzip -c /tmp/dbip.gz > data/geoip.mmdb && break   # gunzip -c: name-independent
             fi
           done
           echo "MIHOMO_BIN=$RUNNER_TEMP/probe/mihomo" >> "$GITHUB_ENV"
