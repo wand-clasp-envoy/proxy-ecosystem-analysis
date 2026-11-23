@@ -315,6 +315,9 @@ def main():
     print(f"loaded {len(rows)} nodes from {len(feeds)} feeds")
     kept, stat = organise(rows, a.health, a.speed)
     print("funnel:", dict(stat), "-> kept", len(kept))
+    if not kept:
+        raise SystemExit("refusing to emit an empty subscription "
+                         "(check GH_TOKEN / cache step; data/raw may be missing)")
 
     if a.probe and kept:
         import probe as prober

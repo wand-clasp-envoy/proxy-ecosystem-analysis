@@ -112,6 +112,7 @@ jobs:
 
       - name: Organise
         env:
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GIST_TOKEN }}
           HEALTH: ${{ inputs.health || '30' }}
           SPEED: ${{ inputs.speed || '1' }}
           PROBE: ${{ inputs.probe == '' || inputs.probe }}

@@ -44,6 +44,8 @@ def main():
     ap.add_argument("--desc", default="clash/mihomo subscription (auto-generated)")
     ap.add_argument("--public", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--min-proxies", type=int, default=100,
+                    help="refuse to publish a yaml with fewer proxies (safety net)")
     a = ap.parse_args()
 
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -54,6 +56,16 @@ def main():
         sys.exit(f"missing input: {missing} (run tools/organize.py first)")
 
     payload = build_payload(files, a.desc, a.public)
+    for name, item in payload["files"].items():
+        if not name.endswith((".yaml", ".yml")):
+            continue
+        try:
+            import yaml as _yaml
+            n = len((_yaml.safe_load(item["content"]) or {}).get("proxies") or [])
+        except Exception as e:
+            sys.exit(f"refusing to publish unparsable {name}: {e}")
+        if n < a.min_proxies:
+            sys.exit(f"refusing to publish {name}: {n} proxies < --min-proxies {a.min_proxies}")
     total = sum(len(v["content"]) for v in payload["files"].values())
     print(f"files: {list(payload['files'])}  {total/1024:.0f} KB  public={a.public}")
 
