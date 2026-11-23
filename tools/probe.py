@@ -310,3 +310,87 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# ------------------------------------------------------------- result lifecycle
+def load_cache(path=None):
+    """fp -> {last_ok, last_probe, miss, delay_ms, speed_mbps, region}."""
+    path = path or os.path.join(DATA, "probe_cache.json")
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def save_cache(cache, path=None):
+    path = path or os.path.join(DATA, "probe_cache.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(cache, f, ensure_ascii=False, separators=(",", ":"))
+
+
+def _age_min(iso, now):
+    import datetime as dt
+    if not iso:
+        return 10 ** 9
+    return (now - dt.datetime.fromisoformat(iso)).total_seconds() / 60
+
+
+def apply_cache(recs, cache, ttl_min=180, max_miss=2, now=None):
+    """Sort recs into four buckets so a cycle never re-tests what it just learned.
+
+    fresh   - never seen, or the stored result is older than ttl_min -> probe now
+    reused  - probed successfully within ttl_min -> reuse stored delay/speed
+    cooling - failed recently (miss < max_miss) -> skip this cycle entirely
+    expired - failed max_miss cycles in a row -> drop from the pool
+    """
+    import datetime as dt
+    now = now or dt.datetime.now(dt.timezone.utc)
+    fresh, reused, cooling, expired = [], [], [], []
+    for r in recs:
+        c = cache.get(r.get("fp") or "")
+        if not c:
+            fresh.append(r)
+            continue
+        if c.get("miss", 0) >= max_miss:
+            expired.append(r)
+            continue
+        recent = _age_min(c.get("last_probe"), now) <= ttl_min
+        if c.get("last_ok") and _age_min(c["last_ok"], now) <= ttl_min:
+            r["delay_ms"] = c.get("delay_ms")
+            r["speed_mbps"] = c.get("speed_mbps")
+            r["alive"] = True
+            r["from_cache"] = True
+            reused.append(r)
+        elif recent:
+            cooling.append(r)
+        else:
+            fresh.append(r)
+    return fresh, reused, cooling, expired
+
+
+def record(cache, probed, now=None):
+    """Merge this cycle's results into the cache."""
+    import datetime as dt
+    now = now or dt.datetime.now(dt.timezone.utc)
+    stamp = now.isoformat(timespec="seconds")
+    for r in probed:
+        fp = r.get("fp")
+        if not fp:
+            continue
+        c = cache.setdefault(fp, {})
+        c["last_probe"] = stamp
+        if r.get("alive"):
+            c["last_ok"] = stamp
+            c["miss"] = 0
+            if r.get("delay_ms"):
+                c["delay_ms"] = r["delay_ms"]
+            if r.get("speed_mbps"):
+                c["speed_mbps"] = r["speed_mbps"]
+            if r.get("md", {}).get("region_source") == "geoip":
+                c["region"] = r["md"].get("region")
+        else:
+            c["miss"] = c.get("miss", 0) + 1
+    return cache

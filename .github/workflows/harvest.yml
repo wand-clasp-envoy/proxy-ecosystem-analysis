@@ -59,6 +59,7 @@ jobs:
             data/candidates.json
             data/gists.json
             data/feeds.json
+            data/probe_cache.json
             data/raw
           key: collector-${{ github.run_id }}
           restore-keys: collector-

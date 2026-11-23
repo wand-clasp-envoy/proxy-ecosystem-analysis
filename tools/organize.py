@@ -187,7 +187,7 @@ def organise(rows, health_min=None, speed_min=None, drop=("http", "socks5", "nul
             if md["speed"] and md["speed"] > (seen[fp]["md"]["speed"] or 0):
                 seen[fp].update(p=p, md=md, owner=owner)
             continue
-        rec = {"owner": owner, "gid": gid, "p": p, "md": md}
+        rec = {"owner": owner, "gid": gid, "p": p, "md": md, "fp": fp}
         seen[fp] = rec
         kept.append(rec)
     kept = rank_and_rename(kept)
@@ -303,6 +303,10 @@ def main():
     ap.add_argument("--speed-top", type=int, default=0,
                     help="measure throughput for the N lowest-delay nodes")
     ap.add_argument("--tcp-timeout", type=float, default=2.5)
+    ap.add_argument("--probe-ttl", type=int, default=180,
+                    help="reuse a successful probe for this many minutes")
+    ap.add_argument("--max-miss", type=int, default=2,
+                    help="drop a node after this many failed probe cycles")
     a = ap.parse_args()
     feeds = load("feeds.json", {})
     if a.cache:
@@ -318,18 +322,32 @@ def main():
         kept.sort(key=lambda r: (-(r["md"]["speed"] or 0), -(r["md"]["health"] or 0)))
         batch = kept[:a.probe_limit]
         untested = kept[a.probe_limit:]
-        survivors = prober.probe(batch, binary=a.probe_binary, tcp_timeout=a.tcp_timeout,
-                                 speed_top=a.speed_top)
-        dropped = len(batch) - len(survivors)
+        cache = prober.load_cache()
+        fresh, reused, cooling, expired = prober.apply_cache(
+            batch, cache, ttl_min=a.probe_ttl, max_miss=a.max_miss)
+        if fresh:
+            prober.probe(fresh, binary=a.probe_binary, tcp_timeout=a.tcp_timeout,
+                         speed_top=a.speed_top)
+        cache = prober.record(cache, fresh)
+        prober.save_cache(cache)
+        survivors = [r for r in fresh if r.get("alive")] + reused
+        dropped = len(fresh) - len([r for r in fresh if r.get("alive")])
         stat["probe_dropped"] = dropped
         stat["probe_untested"] = len(untested)
+        stat["probe_reused"] = len(reused)
+        stat["probe_expired"] = len(expired)
+        stat["probe_cooling"] = len(cooling)
         for r in survivors:
             if r.get("speed_mbps"):
                 r["md"]["speed"] = r["speed_mbps"]
         kept = rank_and_rename(survivors + untested)
         print("probe:", prober.report(survivors),
-              f"dropped {dropped}, untested {len(untested)}")
-        save("probe.json", prober.report(survivors))
+              f"probed {len(fresh)}, dropped {dropped}, reused {len(reused)}, "
+              f"cooling {len(cooling)}, expired {len(expired)}, untested {len(untested)}")
+        save("probe.json", {**prober.report(survivors), "probed": len(fresh),
+                            "reused": len(reused), "cooling": len(cooling),
+                            "expired": len(expired),
+                            "untested": len(untested)})
 
     n = emit(kept, a.out, min_region=a.min_region, max_regions=a.max_regions)
     emit(kept, a.flat, with_groups=False)

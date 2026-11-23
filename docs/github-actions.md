@@ -88,6 +88,16 @@ TCP 可达        577 / 800   (72%)
 吞吐中位        3.7 MB/s (p90 8.4)
 ```
 
+**结果有记忆**：`data/probe_cache.json` 随 Actions cache 跨轮复用——
+
+| 状态 | 判定 | 行为 |
+|---|---|---|
+| `reused` | 3 小时内成功过（`--probe-ttl 180`） | 不重测，直接用存下的延迟/速度 |
+| `cooling` | 刚失败过但还没到 2 次 | 本轮跳过，不重测也不输出 |
+| `expired` | 连续 2 轮失败（`--max-miss 2`） | 从池子里淘汰 |
+
+实测同一批 60 条连跑两次：第一轮 `probed 60, alive 4`，第二轮 `probed 0, reused 4, cooling 56` —— 第二轮零网络开销。
+
 成本：mihomo（约 22 MB，下载 5 s）+ DB-IP（约 4 MB）。CI 里每一步都做了下载失败降级：拿不到 mihomo 就只跑 TCP+GeoIP，拿不到 mmdb 就跳过 GeoIP。
 
 > 本机在受限网络里跑 probe 没意义：本地实测 1.1.1.1:443 都连不上，可用率会被严重低估。要么在 CI 跑，要么在境外 VPS 跑。
