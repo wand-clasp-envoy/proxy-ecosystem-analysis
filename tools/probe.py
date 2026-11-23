@@ -272,6 +272,7 @@ def _probe_part(part, binary, workers, timeout_ms, depth=0):
         for r, d in zip(part, delays):
             r["delay_ms"] = d
             r["alive"] = d is not None
+            r["verified"] = d is not None
             if d is not None:
                 out.append(r)
         print(f"  mihomo: {sum(1 for d in delays if d is not None)}/{len(part)} alive")
@@ -327,6 +328,9 @@ def probe(recs, binary=None, tcp_timeout=2.5, workers=128, chunk=1200,
     if geo:
         stage_geo(recs)          # cheap and independent of reachability
     recs = stage_tcp(recs, workers=workers, timeout=tcp_timeout)
+    if not binary:
+        for r in recs:
+            r["verified"] = True     # tcp-only mode: reachability is all we have
     if binary:
         recs = stage_mihomo(recs, binary, chunk=chunk, workers=delay_workers,
                             speed_top=speed_top)
@@ -441,7 +445,7 @@ def record(cache, probed, now=None):
             continue
         c = cache.setdefault(fp, {})
         c["last_probe"] = stamp
-        if r.get("alive"):
+        if r.get("alive") and r.get("verified", True):
             c["last_ok"] = stamp
             c["miss"] = 0
             if r.get("delay_ms"):

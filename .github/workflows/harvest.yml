@@ -61,8 +61,8 @@ jobs:
             data/feeds.json
             data/probe_cache.json
             data/raw
-          key: collector-${{ github.run_id }}
-          restore-keys: collector-
+          key: collector2-${{ github.run_id }}
+          restore-keys: collector2-
 
       - name: Install deps
         run: pip install -r requirements.txt
