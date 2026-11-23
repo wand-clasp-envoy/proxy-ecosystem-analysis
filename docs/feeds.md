@@ -15,6 +15,7 @@
 | [lzj05](https://gist.github.com/lzj05/c7a3615e1fd9ccdd4a9a5caf853d6d54) | `all.yaml` | 285 | - | - | - | - | 2025-03-31 | 2026-11-23 |
 | [tohand3](https://gist.github.com/tohand3/948a710aaf95285040190902708d4b59) | `nodes-sfzy-clash.yaml` | 218 | - | - | - | - | 2026-11-05 | 2026-11-23 |
 | [scaleflower](https://gist.github.com/scaleflower/20a2175ba0525a3660c40b837caeb97b) | `all.yaml` | 209 | - | - | - | - | 2026-07-26 | 2026-11-22 |
+| [slljun](https://gist.github.com/slljun/b688bb7a5c2a5328c1d50b3aad5c95aa) | `clash.yaml` | 195 | - | - | - | - | 2026-11-11 | 2026-11-23 |
 | [xuehu2319](https://gist.github.com/xuehu2319/56d8962c13b41942989100c0b404994d) | `all.yaml` | 184 | - | - | - | - | 2025-04-22 | 2026-10-08 |
 | [hbl426715](https://gist.github.com/hbl426715/6ddca8bc32a9c20b10ac0bd0cbe07d89) | `clash.yaml` | 108 | - | - | - | - | 2026-11-12 | 2026-11-23 |
 | [Methellli](https://gist.github.com/Methellli/28a02ed3c3085510415c07eb9fc238a2) | `all.yaml` | 106 | - | - | - | - | 2025-05-03 | 2026-11-22 |
@@ -39,6 +40,7 @@
 | [28caitianyi](https://gist.github.com/28caitianyi/a0b0dbfd6a18bac274a64fd468d63cc3) | `clash.yaml` | 22 | - | - | - | - | 2026-11-12 | 2026-11-20 |
 | [laohan9](https://gist.github.com/laohan9/ca8d1834927b4f19f4834fd9000abd9d) | `all.yaml` | 21 | - | - | - | - | 2026-04-24 | 2026-10-24 |
 | [zhangqiyang2-max](https://gist.github.com/zhangqiyang2-max/47f1336a2e41af2e0f7f4313cc8c4bdc) | `clash.yaml` | 18 | - | - | - | - | 2026-11-11 | 2026-11-23 |
+| [alexrider2020](https://gist.github.com/alexrider2020/1eb1925c4df51249fcf8b78a2ab899bb) | `clash.yaml` | 18 | - | - | - | - | 2026-06-15 | 2026-11-23 |
 | [Azhuai](https://gist.github.com/Azhuai/a511693fe905c450f3145ddf9e16d546) | `all.yaml` | 15 | - | - | - | - | 2025-05-26 | 2026-11-23 |
 | [antioxi1](https://gist.github.com/antioxi1/0806402949a5e561a64a09183b1c5bac) | `clash.yaml` | 11 | - | - | - | - | 2026-11-11 | 2026-11-23 |
 | [RunZH](https://gist.github.com/RunZH/96004e95cb32641ec2945f8482b85ea0) | `clash.yaml` | 10 | - | - | - | - | 2026-11-20 | 2026-11-23 |
