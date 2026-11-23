@@ -28,6 +28,10 @@ tools/churn.py              版本间增删/改名
 tools/formats.py            base64 逐协议损失、分组模板统计
 tools/organize.py           归一 + 去重 + 筛选 + 重命名 + 生成订阅
 tools/report.py             汇总为 docs/feeds.md + data/summary.json
+tools/publish.py            把订阅推送到 gist（Actions 里的发布步骤）
+tools/summary_md.py         Actions 运行摘要
+.github/workflows/harvest.yml  每 6 小时自动跑一遍
+docs/github-actions.md      部署说明（secrets / 限制 / 排障）
 data/                       中间产物（JSON）+ 归一后的订阅样例（仅本地，含凭据，已 gitignore）
 ```
 
@@ -44,6 +48,12 @@ python report.py
 ```
 
 `organize.py` 支持 `--min-region`（小地区并入 🌍 其他）与 `--max-regions`（地区组上限）。
+
+## 自动执行
+
+已内置 GitHub Actions：每 6 小时抓取一轮，筛选后生成订阅并推送到 gist。
+配置 `GIST_TOKEN`（+ 可选 `GIST_ID`、`GH_PAT`）即可，步骤见
+**[docs/github-actions.md](docs/github-actions.md)**。
 
 ## 说明
 

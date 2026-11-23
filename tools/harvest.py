@@ -5,8 +5,9 @@ Two stages:
   search  - scrape gist search results (top-N newest per query, paginated via p=)
   meta    - fetch gist metadata through the authenticated GitHub API
 
-Why the split: gist.github.com is unreachable without the local proxy here,
-while api.github.com works direct and is fast. Keep them separate.
+Why the split: gist.github.com may be unreachable without a proxy (local dev),
+while api.github.com is fast direct and works from GitHub runners too.
+Set GIST_PROXY to route the HTML search through a proxy; leave it unset in CI.
 
   python tools/harvest.py search --pages 5
   python tools/harvest.py meta
@@ -15,7 +16,7 @@ import json, os, re, sys, time, urllib.parse, urllib.request, urllib.error
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, "data")
-PROXY = "http://127.0.0.1:7897"
+PROXY = os.environ.get("GIST_PROXY", "")
 QUERIES = ["clash", "mihomo", "sing-box", "v2ray", "订阅", "subs-check",
            "hysteria2", "all.yaml", "base64.txt", "机场"]
 
@@ -84,7 +85,7 @@ def cmd_search(pages):
             url = ("https://gist.github.com/search?o=desc&s=updated&q="
                    + urllib.parse.quote(q) + f"&p={p}")
             try:
-                html = get(url, use_proxy=True).decode("utf-8", "ignore")
+                html = get(url, use_proxy=bool(PROXY)).decode("utf-8", "ignore")
             except Exception as e:
                 print(f"  {q} p{p}: ERR {e}")
                 continue
