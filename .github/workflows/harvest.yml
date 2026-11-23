@@ -89,6 +89,18 @@ jobs:
           fi
           python tools/publish.py --gist "$GIST_ID" --file data/organised.yaml
 
+      - name: Keep the bundle as a run artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: subscription-${{ github.run_id }}
+          path: |
+            data/organised.yaml
+            data/summary.json
+            data/organise_report.json
+          retention-days: 7
+          if-no-files-found: warn
+
       - name: Commit regenerated docs
         run: |
           git config user.name  "github-actions[bot]"
