@@ -322,14 +322,14 @@ def main():
         kept.sort(key=lambda r: (-(r["md"]["speed"] or 0), -(r["md"]["health"] or 0)))
         batch = kept[:a.probe_limit]
         untested = kept[a.probe_limit:]
-        cache = prober.load_cache()
+        probe_cache = prober.load_cache()
         fresh, reused, cooling, expired = prober.apply_cache(
-            batch, cache, ttl_min=a.probe_ttl, max_miss=a.max_miss)
+            batch, probe_cache, ttl_min=a.probe_ttl, max_miss=a.max_miss)
         if fresh:
             prober.probe(fresh, binary=a.probe_binary, tcp_timeout=a.tcp_timeout,
                          speed_top=a.speed_top)
-        cache = prober.record(cache, fresh)
-        prober.save_cache(cache)
+        probe_cache = prober.record(probe_cache, fresh)
+        prober.save_cache(probe_cache)
         survivors = [r for r in fresh if r.get("alive")] + reused
         dropped = len(fresh) - len([r for r in fresh if r.get("alive")])
         stat["probe_dropped"] = dropped
