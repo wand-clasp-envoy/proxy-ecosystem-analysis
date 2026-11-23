@@ -43,6 +43,7 @@
 | [antioxi1](https://gist.github.com/antioxi1/0806402949a5e561a64a09183b1c5bac) | `clash.yaml` | 11 | - | - | - | - | 2026-11-11 | 2026-11-23 |
 | [xiaopicheng0414](https://gist.github.com/xiaopicheng0414/ea992a8fa13233c711fb5f72b2668141) | `clash.yaml` | 10 | - | - | - | - | 2026-11-12 | 2026-11-23 |
 | [suhuicao1-arch](https://gist.github.com/suhuicao1-arch/59b9b59469fecffcf8977a11f1c63548) | `clash.yaml` | 10 | - | - | - | - | 2026-11-12 | 2026-11-23 |
+| [RunZH](https://gist.github.com/RunZH/96004e95cb32641ec2945f8482b85ea0) | `clash.yaml` | 10 | - | - | - | - | 2026-11-20 | 2026-11-23 |
 | [zhuoyangqw](https://gist.github.com/zhuoyangqw/832e78300f348f3588ef28f194c9131c) | `clash.yaml` | 7 | - | - | - | - | 2026-11-12 | 2026-11-23 |
 | [swchiguge1-create](https://gist.github.com/swchiguge1-create/72b0267ece4cc1305e257bd925505c69) | `clash.yaml` | 5 | - | - | - | - | 2026-11-12 | 2026-11-22 |
 | [ansir999](https://gist.github.com/ansir999/f785ca3a330b9e324664608c42b92048) | `all.yaml` | 5 | - | - | - | - | 2026-02-15 | 2026-04-29 |
