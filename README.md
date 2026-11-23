@@ -12,7 +12,8 @@
 3. 身份要用「传输指纹」（除 `name` 外全字段）。单源内重复 3.4%，跨源仅 5.8%：跨源是长尾，不是重复。
 4. 选源边际收益陡峭：**3 个源覆盖 50%，5 个覆盖 80%，11 个覆盖 95%**。
 5. 池子换血极快：24h 存活中位数 **20%**，需要滚动复测，不能收录一次长期使用。
-6. 发布者不筛质量：带健康度的节点里 **47% 是 0%**。
+6. 主动探测显示：静态清单里**只有约 47% 真的能用**（800 条样本：TCP 72% × 协议层 66%）。
+7. 发布者不筛质量：带健康度的节点里 **47% 是 0%**。
 
 完整分析见 **[docs/node-organization.md](docs/node-organization.md)**，源清单见 [docs/feeds.md](docs/feeds.md)。
 
@@ -28,6 +29,7 @@ tools/churn.py              版本间增删/改名
 tools/formats.py            base64 逐协议损失、分组模板统计
 tools/organize.py           归一 + 去重 + 筛选 + 重命名 + 生成订阅
 tools/report.py             汇总为 docs/feeds.md + data/summary.json
+tools/probe.py              主动探测：TCP / GeoIP(mihomo delay) / 吞吐
 tools/publish.py            把订阅推送到 gist（Actions 里的发布步骤）
 tools/summary_md.py         Actions 运行摘要
 .github/workflows/harvest.yml  每 6 小时自动跑一遍

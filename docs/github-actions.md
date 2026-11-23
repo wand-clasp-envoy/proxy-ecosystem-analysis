@@ -33,6 +33,9 @@ Actions → **harvest** → **Run workflow**：
 | `health` | `30` | 丢掉名字里自报健康度 < 30% 的节点 |
 | `speed` | `1` | 丢掉自报速度 < 1 MB/s 的节点 |
 | `mode` | `refresh` | `full` 会额外跑 `daily.py`（24h 存活）+ `churn.py` + `formats.py`，多约 300 次 API 调用 |
+| `probe` | `true` | 主动探测：TCP 可达性 + mihomo 真实延迟 + 采样吞吐 |
+| `probe_limit` | `1200` | 每轮探测多少条（按自报速度优先） |
+| `speed_top` | `120` | 对延迟最低的 N 条测吞吐（0 = 关） |
 
 跑完后：
 
@@ -59,11 +62,35 @@ workflow_dispatch ───────┴─→ checkout → python3.12 → pip
                               → harvest.py search   (gist.github.com，直连即可)
                               → harvest.py meta     (api.github.com)
                               → fetch_nodes.py      (46 个源 + 传输指纹)
-                              → organize.py         (归一/去重/重命名/分组)
+                              → [mihomo + DB-IP]    (装探测工具链)
+                              → organize.py         (归一/去重/重命名/分组 + --probe 实测)
                               → report.py           (docs/feeds.md + summary.json)
                               → publish.py          (gist = 订阅)
                               → git commit docs/    (只在有变化时)
 ```
+
+## 2.1 主动探测（probe）的收益与成本
+
+`--probe` 会在 6 小时一轮里额外做三件事：
+
+1. **TCP 可达性**：并行连接 `server:port`，直接砍掉 DNS 失败/端口关闭的节点
+2. **真实延迟**：把幸存节点灌进一个 mihomo 实例，调 `GET /proxies/{name}/delay`，这一步会真正完成协议握手（vless/anytls/hy2/ss 都能测）
+3. **采样吞吐**：对延迟最低的 N 条，切换 `select` 组并下载 2 MB，算出 MB/s
+4. **GeoIP**：用本地 DB-IP lite（CC BY 4.0）给没有地区标签的节点补国家码
+
+实测（2026-11-23，800 条样本，总耗时 **5.4 分钟**）：
+
+```
+TCP 可达        577 / 800   (72%)
+协议层通过      379 / 577   (66%)
+真正可用        379 / 800   (47%)
+延迟中位        325 ms
+吞吐中位        3.7 MB/s (p90 8.4)
+```
+
+成本：mihomo（约 22 MB，下载 5 s）+ DB-IP（约 4 MB）。CI 里每一步都做了下载失败降级：拿不到 mihomo 就只跑 TCP+GeoIP，拿不到 mmdb 就跳过 GeoIP。
+
+> 本机在受限网络里跑 probe 没意义：本地实测 1.1.1.1:443 都连不上，可用率会被严重低估。要么在 CI 跑，要么在境外 VPS 跑。
 
 ## 3. 必须知道的 6 个限制
 

@@ -184,7 +184,22 @@ suhuicao1-arch  ∩ antioxi1         jaccard 0.91
 3. **地区**：名字只覆盖 ~90%，剩下靠 IP GeoIP。好消息是 **67% 的 server 是 IP 字面量**，可以直接批量 GeoIP；33% 是域名，需要先解析
 4. **ASN/机房**：`GCP` `AWS` `TK` 这类"线路"标签只出现在名字里，不可靠；ASN 能反推真实落地（云厂商 IP 段 vs 家宽）
 
-### 5.3 协议白/黑名单
+### 5.3 实测：静态清单里只有约一半是活的（2026-11-23，Azure runner）
+
+`tools/probe.py` 在 CI 里对 800 条做了一次真实探测：
+
+| 阶段 | 结果 |
+|---|---|
+| 静态门限后 | 7,815 条 |
+| TCP 可达 | 577 / 800（**72%**） |
+| 协议层延迟测试通过（mihomo 真实握手） | 379 / 577（**66%**） |
+| **真正可用** | **379 / 800（47%）** |
+| 延迟中位 / 吞吐中位 | **325 ms / 3.7 MB/s**（p90 8.4） |
+| GeoIP 补齐地区 | 67 / 800（名字里没有地区标签的那批） |
+
+结论：发布者的“已测速/已测活”标签**大约有一半不可信**；而实测速度中位（3.7 MB/s）比发布者自报（2.8 MB/s）还高——因为自报值往往来自更早的轮次。
+
+### 5.4 协议白/黑名单
 
 本语料协议构成（去重后 9,826 条）：
 
@@ -318,6 +333,7 @@ L5 发布    重命名（规范 ABI）→ 地区/服务分组 → 输出 all.yam
 | 单源占比 | 任一源不超过总量的 40% | 防止单点（`HAIDEJIANG` 一源就 3482 条） |
 | 重命名 | `{flag}{ISO2}_{序号}\|{速度}\|{解锁}`，序号按地区内速度重排 | 与生态 ABI 兼容，客户端可直接阅读 |
 | 复测节奏 | 大池 60 min，轮换池 15 min | 更新间隔中位 10.2 min，节奏要对齐 |
+| 主动探测 | TCP 可达 + 协议延迟，任一失败即丢 | 实测通过率 47%（见 §5.3） |
 
 跑一遍这套门限的效果（`python organize.py --health 30 --speed 1`）：
 
@@ -363,6 +379,8 @@ GH_TOKEN=$(gh auth token) python daily.py                 # 24h 存活 + 更新�
 GH_TOKEN=$(gh auth token) python churn.py                 # 新旧版本对比
 GH_TOKEN=$(gh auth token) python formats.py               # base64 损失 / 分组模板
 python organize.py --cache --health 30 --speed 1          # 归一 + 去重 + 重命名 + 出订阅
+# 主动探测（需要 mihomo 二进制；GeoIP 需要 data/geoip.mmdb）
+python organize.py --cache --health 30 --speed 1 --probe --probe-limit 1200 --speed-top 120 --probe-binary /path/to/mihomo
 python report.py                                          # 生成 docs/feeds.md + summary.json
 ```
 
