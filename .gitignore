@@ -1,0 +1,5 @@
+# local only: raw feeds and emitted subscriptions contain live credentials
+data/
+__pycache__/
+*.pyc
+.pi-glla/
