@@ -45,6 +45,20 @@ def get(url, use_proxy=False, timeout=45, headers=None):
     return opener(use_proxy).open(req, timeout=timeout).read()
 
 
+def fetch_retry(url, use_proxy, attempts=4):
+    """gist.github.com answers 429 when a burst of searches arrives; back off."""
+    for i in range(attempts):
+        try:
+            return get(url, use_proxy=use_proxy)
+        except urllib.error.HTTPError as e:
+            if e.code in (429, 500, 502, 503, 504) and i < attempts - 1:
+                wait = float(e.headers.get("Retry-After") or 0) or min(30, 3 * 2 ** i)
+                print(f"    {e.code} on {e.url.split('?')[0]}, retry in {wait:.0f}s")
+                time.sleep(wait)
+                continue
+            raise
+
+
 def load(name, default):
     p = os.path.join(DATA, name)
     if not os.path.exists(p):
@@ -78,14 +92,14 @@ def parse_search(html):
     return out
 
 
-def cmd_search(pages):
+def cmd_search(pages, pause=1.5):
     cand = {(c["owner"], c["id"]): c for c in load("candidates.json", [])}
     for q in QUERIES:
         for p in range(1, pages + 1):
             url = ("https://gist.github.com/search?o=desc&s=updated&q="
                    + urllib.parse.quote(q) + f"&p={p}")
             try:
-                html = get(url, use_proxy=bool(PROXY)).decode("utf-8", "ignore")
+                html = fetch_retry(url, use_proxy=bool(PROXY)).decode("utf-8", "ignore")
             except Exception as e:
                 print(f"  {q} p{p}: ERR {e}")
                 continue
@@ -97,7 +111,7 @@ def cmd_search(pages):
                     cand[(r["owner"], r["id"])] = r
                     new += 1
             print(f"  {q} p{p}: {len(rows)} rows, +{new} new (total {len(cand)})")
-            time.sleep(0.6)
+            time.sleep(pause)
         save("candidates.json", list(cand.values()))
 
 
@@ -137,4 +151,5 @@ def cmd_meta():
 if __name__ == "__main__":
     what = sys.argv[1] if len(sys.argv) > 1 else "search"
     pages = int(sys.argv[sys.argv.index("--pages") + 1]) if "--pages" in sys.argv else 5
-    {"search": lambda: cmd_search(pages), "meta": cmd_meta}[what]()
+    pause = float(sys.argv[sys.argv.index("--sleep") + 1]) if "--sleep" in sys.argv else 1.5
+    {"search": lambda: cmd_search(pages, pause), "meta": cmd_meta}[what]()

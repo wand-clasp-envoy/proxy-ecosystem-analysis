@@ -42,6 +42,17 @@ jobs:
           python-version: "3.12"
           cache: pip
 
+      - name: Restore collector state
+        uses: actions/cache@v4
+        with:
+          path: |
+            data/candidates.json
+            data/gists.json
+            data/feeds.json
+            data/raw
+          key: collector-${{ github.run_id }}
+          restore-keys: collector-
+
       - name: Install deps
         run: pip install -r requirements.txt
 
@@ -52,9 +63,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.GIST_TOKEN }}
           PAGES: ${{ inputs.pages || '3' }}
+          SLEEP: "1.5"
         run: |
           cd tools
-          python harvest.py search --pages "$PAGES"
+          python harvest.py search --pages "$PAGES" --sleep "$SLEEP"
           python harvest.py meta
           python fetch_nodes.py
           python check_feeds.py
