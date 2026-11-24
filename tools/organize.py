@@ -235,27 +235,98 @@ RULE_PROVIDERS = {
 }
 
 
-def emit(kept, path, with_groups=True, min_region=5, max_regions=12):
+CORE_TYPES = {"ss", "ssr", "vmess", "vless", "trojan", "hysteria", "hysteria2",
+              "tuic", "anytls", "http", "socks5", "wireguard", "snell", "ssh"}
+
+
+def _reality_ok(p):
+    """Reuse the prober's rule set: mihomo rejects the whole file otherwise."""
+    try:
+        from probe import _valid_reality
+        return _valid_reality(p)
+    except Exception:
+        return True
+
+
+def self_check(path, binary, max_iters=30):
+    """Ask mihomo to load the emitted proxies; drop entries it complains about.
+
+    mihomo refuses the whole file for one bad proxy and reports it as
+    `proxy N: ...` with a 1-based index, so removal is deterministic. The test
+    runs on a stripped config (MATCH,DIRECT) so rule-provider/GEOIP downloads
+    cannot mask a proxy parse error.
+    """
+    import subprocess, tempfile
+    dropped = 0
+
+    def test(doc):
+        tmp = tempfile.mkdtemp(prefix="selfcheck-")
+        cfg = os.path.join(tmp, "t.yaml")
+        probe_doc = {
+            "mixed-port": 0, "log-level": "silent",
+            "proxies": doc["proxies"],
+            "proxy-groups": [{"name": "SELFCHECK", "type": "select",
+                              "proxies": [p["name"] for p in doc["proxies"]]}],
+            "rules": ["MATCH,SELFCHECK"],
+        }
+        with open(cfg, "w", encoding="utf-8") as f:
+            yaml.safe_dump(probe_doc, f, allow_unicode=True, sort_keys=False)
+        r = subprocess.run([binary, "-t", "-f", cfg, "-d", tmp],
+                           capture_output=True, text=True, timeout=240)
+        return r.returncode, (r.stderr or "") + (r.stdout or "")
+
+    with open(path, encoding="utf-8") as f:
+        doc = yaml.safe_load(f) or {}
+    for _ in range(max_iters):
+        rc, msg = test(doc)
+        if rc == 0:
+            break
+        m = re.search(r"proxy (\d+):", msg)
+        if not m:
+            print("  self-check: non-proxy error: " + " | ".join(msg.strip().splitlines()[-1:]))
+            return dropped
+        idx = int(m.group(1)) - 1
+        px = doc.get("proxies") or []
+        if not 0 <= idx < len(px):
+            print(f"  self-check: index {idx} out of range, stop")
+            return dropped
+        gone = px.pop(idx)
+        dropped += 1
+        print(f"  self-check: dropped {str(gone.get('name', '?'))[:40]} ({m.group(0)})")
+    if dropped:
+        with open(path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(doc, f, allow_unicode=True, sort_keys=False, width=4096)
+    return dropped
+
+
+def emit(kept, path, with_groups=True, min_region=5, max_regions=12, binary=None):
     kept = sorted(kept, key=lambda r: (r["md"]["region"] or "ZZ",
                                        r.get("delay_ms") or 10 ** 6,
                                        -(r.get("speed_mbps") or r["md"]["speed"] or 0)))
-    proxies = []
+    used, proxies, unusable = [], [], 0
     for r in kept:
         p = dict(r["p"])
         p["name"] = r["new_name"]
+        if p.get("type") not in CORE_TYPES or not _reality_ok(p):
+            unusable += 1
+            continue
+        used.append(r)
         proxies.append(p)
+    if unusable:
+        print(f"  emit: skipped {unusable} entries mihomo cannot parse")
     doc = {"proxies": proxies}
     if with_groups:
-        count = collections.Counter(r["md"]["region"] for r in kept)
+        count = collections.Counter(r["md"]["region"] for r in used)
         big = [reg for reg, c in count.most_common(max_regions) if reg and c >= min_region]
-        small = [r["new_name"] for r in kept if not r["md"]["region"] or count[r["md"]["region"]] < min_region]
+        small = [r["new_name"] for r in used
+                 if not r["md"]["region"] or count[r["md"]["region"]] < min_region]
         selector = ["♻️ 自动选择"] + [f"{REGIONS.get(x, ('🏳️',))[0]}{x} 节点" for x in big]
         if small:
             selector.append("🌍 其他")
         groups = [{"name": "🚀 节点选择", "type": "select", "proxies": selector},
                   {"name": "♻️ 自动选择", "type": "url-test",
                    "url": "https://www.gstatic.com/generate_204", "interval": 300,
-                   "tolerance": 50, "proxies": [r["new_name"] for r in kept]},
+                   "tolerance": 50, "proxies": [r["new_name"] for r in used]},
                   {"name": "💬 AI 平台", "type": "select", "proxies": ["♻️ 自动选择", "🚀 节点选择"]},
                   {"name": "📺 流媒体", "type": "select", "proxies": ["♻️ 自动选择", "🚀 节点选择"]},
                   {"name": "🎯 全球直连", "type": "select", "proxies": ["DIRECT", "🚀 节点选择"]}]
@@ -264,7 +335,7 @@ def emit(kept, path, with_groups=True, min_region=5, max_regions=12):
             groups.append({"name": f"{flag}{reg} 节点", "type": "url-test",
                            "url": "https://www.gstatic.com/generate_204", "interval": 300,
                            "tolerance": 50,
-                           "proxies": [r["new_name"] for r in kept if r["md"]["region"] == reg]})
+                           "proxies": [r["new_name"] for r in used if r["md"]["region"] == reg]})
         if small:
             groups.append({"name": "🌍 其他", "type": "url-test",
                            "url": "https://www.gstatic.com/generate_204", "interval": 300,
@@ -280,6 +351,10 @@ def emit(kept, path, with_groups=True, min_region=5, max_regions=12):
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         yaml.safe_dump(doc, f, allow_unicode=True, sort_keys=False, width=4096)
+    if binary and os.path.exists(binary):
+        fixed = self_check(path, binary)
+        if fixed:
+            print(f"  self-check: removed {fixed} more entries rejected by mihomo")
     return len(proxies)
 
 
@@ -354,7 +429,8 @@ def main():
                             "expired": len(expired),
                             "untested": len(untested)})
 
-    n = emit(kept, a.out, min_region=a.min_region, max_regions=a.max_regions)
+    n = emit(kept, a.out, min_region=a.min_region, max_regions=a.max_regions,
+             binary=a.probe_binary)
     emit(kept, a.flat, with_groups=False)
     regs = collections.Counter(r["md"]["region"] or "??" for r in kept)
     prots = collections.Counter(r["p"].get("type") for r in kept)
