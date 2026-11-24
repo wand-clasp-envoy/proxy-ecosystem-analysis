@@ -33,6 +33,7 @@
 | [st0rer](https://gist.github.com/st0rer/52759ee3f68c3d4b2f2d53c307867471) | `clash.yaml` | 35 | - | - | - | - | 2026-11-15 | 2026-11-23 |
 | [zzworker](https://gist.github.com/zzworker/d7b40db5b514a2ad4581bd38086eee15) | `clash.yaml` | 35 | - | - | - | - | 2026-11-12 | 2026-11-23 |
 | [skysph-dev](https://gist.github.com/skysph-dev/5b55986287442543485b30468db3eb65) | `clash.yaml` | 35 | - | - | - | - | 2026-11-12 | 2026-11-22 |
+| [dingdingdang22](https://gist.github.com/dingdingdang22/ad3938b6f1c15f139671f87cadc761de) | `all.yaml` | 35 | - | - | - | - | 2025-09-05 | 2026-03-22 |
 | [alanwang776](https://gist.github.com/alanwang776/bb272731c61ccf45007cd0f89bd51138) | `all.yaml` | 32 | - | - | - | - | 2026-11-02 | 2026-11-18 |
 | [1009476063](https://gist.github.com/1009476063/98ee639023acbec7a4b086cc87cd2de7) | `vpn_subs_jianguo_clash.yaml` | 27 | - | - | - | - | 2026-06-22 | 2026-11-23 |
 | [Mathdeep258](https://gist.github.com/Mathdeep258/007cc1adcae763f9388259f71fea0b40) | `all.yaml` | 24 | - | - | - | - | 2026-07-07 | 2026-11-23 |
