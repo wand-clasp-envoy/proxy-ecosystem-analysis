@@ -359,6 +359,40 @@ def report(recs):
                                       if r.get("md", {}).get("region_source") == "geoip")}
 
 
+def detailed_report(recs, total=None):
+    """Alive rate per protocol/region for a full subscription sweep."""
+    import collections, statistics as st
+    total = total if total is not None else len(recs)
+    by_type, by_region = collections.defaultdict(lambda: [0, 0]), collections.defaultdict(lambda: [0, 0])
+    delays, speeds = [], []
+    for r in recs:
+        t = str(r["p"].get("type"))
+        reg = r["md"].get("region") or "??"
+        by_type[t][1] += 1
+        by_region[reg][1] += 1
+        if r.get("alive"):
+            by_type[t][0] += 1
+            by_region[reg][0] += 1
+        if r.get("delay_ms"):
+            delays.append(r["delay_ms"])
+        if r.get("speed_mbps"):
+            speeds.append(r["speed_mbps"])
+    def q(xs, p):
+        return round(sorted(xs)[min(len(xs) - 1, int(len(xs) * p))], 1) if xs else None
+    return {
+        "total": total, "tested": len(recs),
+        "alive": sum(1 for r in recs if r.get("alive")),
+        "alive_pct": round(100 * sum(1 for r in recs if r.get("alive")) / max(1, len(recs)), 1),
+        "delay_p50": q(delays, .5), "delay_p90": q(delays, .9),
+        "speed_p50": q(speeds, .5), "speed_p90": q(speeds, .9),
+        "speed_samples": len(speeds),
+        "by_type": {k: {"alive": v[0], "tested": v[1]} for k, v in
+                    sorted(by_type.items(), key=lambda kv: -kv[1][1])},
+        "by_region": {k: {"alive": v[0], "tested": v[1]} for k, v in
+                      sorted(by_region.items(), key=lambda kv: -kv[1][1])[:15]},
+    }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--input", default=os.path.join(DATA, "organised.yaml"))
@@ -366,14 +400,18 @@ def main():
     ap.add_argument("--limit", type=int, default=300)
     ap.add_argument("--binary", default=os.environ.get("MIHOMO_BIN"))
     ap.add_argument("--speed-top", type=int, default=0)
+    ap.add_argument("--speed-budget", type=int, default=300)
     a = ap.parse_args()
 
     with open(a.input, encoding="utf-8") as f:
         doc = yaml.safe_load(f) or {}
     proxies = [p for p in (doc.get("proxies") or []) if isinstance(p, dict)][:a.limit]
     recs = [{"p": dict(p), "md": {}} for p in proxies]
-    recs = probe(recs, binary=a.binary, speed_top=a.speed_top)
-    print(json.dumps(report(recs), ensure_ascii=False))
+    recs = probe(recs, binary=a.binary, speed_top=a.speed_top, speed_budget=a.speed_budget)
+    detail = detailed_report(recs, total=len(proxies))
+    print(json.dumps(detail, ensure_ascii=False, indent=1))
+    with open(os.path.join(DATA, "probe_report.json"), "w", encoding="utf-8") as f:
+        json.dump(detail, f, ensure_ascii=False, indent=1)
     doc["proxies"] = [r["p"] for r in recs]
     with open(a.output, "w", encoding="utf-8") as f:
         yaml.safe_dump(doc, f, allow_unicode=True, sort_keys=False, width=4096)

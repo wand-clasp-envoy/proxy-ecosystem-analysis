@@ -1,0 +1,100 @@
+name: probe-sub
+
+# One-off audit: how many nodes in a published subscription actually work?
+# Runs on a GitHub runner (good vantage point) and probes the WHOLE file.
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "subscription yaml to audit"
+        default: "https://gist.githubusercontent.com/wand-clasp-envoy/b55b2118b45dbfc87ed8e2690e6ad6a3/raw/organised.yaml"
+      limit:
+        description: "probe at most N nodes (0 = all)"
+        default: "0"
+      speed_top:
+        description: "throughput sample size"
+        default: "200"
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install deps
+        run: pip install -r requirements.txt maxminddb
+
+      - name: Install probe toolchain
+        run: |
+          mkdir -p "$RUNNER_TEMP/probe"
+          V=v1.19.34
+          curl -sSLf -o /tmp/mihomo.gz "https://github.com/MetaCubeX/mihomo/releases/download/${V}/mihomo-linux-amd64-compatible-${V}.gz"
+          gunzip -f /tmp/mihomo.gz && chmod +x /tmp/mihomo && mv /tmp/mihomo "$RUNNER_TEMP/probe/mihomo"
+          for M in $(date -u +%Y-%m) $(date -u -d '1 month ago' +%Y-%m); do
+            if curl -sSLf -o /tmp/dbip.gz "https://download.db-ip.com/free/dbip-country-lite-${M}.mmdb.gz"; then
+              gunzip -c /tmp/dbip.gz > data/geoip.mmdb && break
+            fi
+          done
+          echo "MIHOMO_BIN=$RUNNER_TEMP/probe/mihomo" >> "$GITHUB_ENV"
+
+      - name: Fetch subscription
+        run: |
+          mkdir -p data
+          curl -sSLf --retry 3 -o data/audit-input.yaml "${{ inputs.url }}"
+          python -c "
+          import yaml, os
+          d = yaml.safe_load(open('data/audit-input.yaml', encoding='utf-8'))
+          print('nodes in file:', len(d['proxies']))"
+
+      - name: Probe everything
+        env:
+          LIMIT: ${{ inputs.limit || '0' }}
+          STOP: ${{ inputs.speed_top || '200' }}
+        run: |
+          cd tools
+          L="$LIMIT"; [ "$L" = "0" ] && L=99999
+          python -u probe.py --input ../data/audit-input.yaml --output ../data/audit-probed.yaml \
+            --limit "$L" --speed-top "$STOP" --binary "$MIHOMO_BIN"
+          cp ../data/probe_report.json ../data/audit-report.json 2>/dev/null || true
+
+      - name: Summary
+        if: ${{ always() }}
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json, os
+          p = "data/audit-report.json"
+          if not os.path.exists(p):
+              print("no report (probe stage failed)")
+          else:
+              d = json.load(open(p))
+              print(f"### audit: {d['alive']}/{d['tested']} alive ({d['alive_pct']}%)\n")
+              print(f"- delay p50/p90: {d['delay_p50']} / {d['delay_p90']} ms")
+              print(f"- speed p50/p90: {d['speed_p50']} / {d['speed_p90']} MB/s "
+                    f"({d['speed_samples']} sampled)")
+              print("\n| protocol | alive | tested |\n|---|---:|---:|")
+              for k, v in list(d['by_type'].items())[:12]:
+                  print(f"| {k} | {v['alive']} | {v['tested']} |")
+              print("\n| region | alive | tested |\n|---|---:|---:|")
+              for k, v in d['by_region'].items():
+                  print(f"| {k} | {v['alive']} | {v['tested']} |")
+          PY
+
+      - name: Upload report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-${{ github.run_id }}
+          path: |
+            data/audit-report.json
+            data/audit-probed.yaml
+          retention-days: 7
+          if-no-files-found: warn
