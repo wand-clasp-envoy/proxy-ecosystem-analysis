@@ -227,22 +227,27 @@ BAD_TYPES = {"", None}
 
 
 def _valid_reality(p):
-    """mihomo aborts the whole config on a malformed REALITY short-id/public-key."""
+    """mihomo aborts the whole config on REALITY args it cannot parse.
+
+    Its rules are stricter than the spec: short-id must be empty or exactly 8
+    bytes (16 hex chars), and public-key must be 32 bytes of base64(url).
+    Anything else is dropped from the probe batch (kept as unverified).
+    """
     ro = p.get("reality-opts")
     if not isinstance(ro, dict):
         return True
     sid = str(ro.get("short-id") or "")
-    if sid and (len(sid) % 2 or not re.fullmatch(r"[0-9a-fA-F]+", sid)):
+    if sid and not re.fullmatch(r"[0-9a-fA-F]{16}", sid):
         return False
     pk = str(ro.get("public-key") or "")
-    if pk:
-        try:
-            pad = pk + "=" * (-len(pk) % 4)
-            if len(base64.b64decode(pad, validate=True)) != 32:
-                return False
-        except Exception:
-            return False
-    return True
+    if not pk:
+        return False
+    try:
+        raw = base64.urlsafe_b64decode(pk.replace("+", "-").replace("/", "_")
+                                       + "=" * (-len(pk) % 4))
+    except Exception:
+        return False
+    return len(raw) == 32
 
 
 def _probe_part(part, binary, workers, timeout_ms, depth=0):

@@ -100,7 +100,7 @@ TCP 可达        577 / 800   (72%)
 
 两个工程细节（都踩过）：
 
-- **mihomo 会因单条坏节点拒绝整个配置**（实测报错 `Parse config error: proxy 365: invalid REALITY short ID`）。现在先过滤 REALITY `short-id`/`public-key` 不合法的节点（本语料约 7%），配置仍被拒时二分重试，并把 mihomo 的 stderr 打出来。
+- **mihomo 会因单条坏节点拒绝整个配置**（实测报错 `Parse config error: proxy 365: invalid REALITY short ID`）。现在先过滤 REALITY 参数不合 mihomo 规范的节点（`short-id` 必须为空或 16 位 hex，`public-key` 必须解出 32 字节 base64url；REALITY 节点里约 20% 不合格，占全体约 4%），配置仍被拒时二分重试，并把 mihomo 的 stderr 打出来。
 - **只有协议级验证通过才写 `last_ok`**：只过了 TCP 的节点下一轮会重测，不会被当成"已验证"缓存 3 小时。
 - **吞吐阶段有预算**（`--speed-budget 300` 秒）：延迟低但卡死的节点最多耽误 5 分钟，不会把一轮跑成半小时。
 
