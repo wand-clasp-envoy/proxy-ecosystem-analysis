@@ -30,6 +30,8 @@ tools/formats.py            base64 逐协议损失、分组模板统计
 tools/organize.py           归一 + 去重 + 筛选 + 重命名 + 生成订阅
 tools/report.py             汇总为 docs/feeds.md + data/summary.json
 tools/probe.py              主动探测：TCP / GeoIP(mihomo delay) / 吞吐
+tools/local_lite.py         本机视角复验 -> 200 条小订阅（国内网络可用）
+tools/local-refresh.ps1     本机定时刷新 + 发布 lite 订阅
 tools/publish.py            把订阅推送到 gist（Actions 里的发布步骤）
 tools/summary_md.py         Actions 运行摘要
 .github/workflows/harvest.yml  每 6 小时自动跑一遍

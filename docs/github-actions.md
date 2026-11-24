@@ -149,3 +149,38 @@ python harvest.py search --pages 3 && python harvest.py meta && python fetch_nod
 python organize.py --cache --health 30 --speed 1 && python report.py
 python publish.py --gist <id> --file data/organised.yaml     # 或省略 --gist 新建
 ```
+
+
+## 7. 为什么"GitHub 上验证通过"的订阅在本地用不了
+
+同一份文件，两个视角，差别是数量级的：
+
+| 视角 | 结果 |
+|---|---|
+| Azure runner（GitHub Actions） | TCP 可达 4,903/6,869 (71%) → 协议级通过 2,230 (32.5%) |
+| **本机（国内家庭宽带）** | TCP 可达 3,633/6,869 (52.9%)；而 Azure 已验的 355 条里，本机只连得上 **26 条（7.3%）** |
+| 本机 + 按 TCP 延迟优先验证 600 条 | 协议级通过 265/600 (44%) → 取前 200 条，8/8 端到端 HTTP 204 通过 |
+
+结论：**"可用"是相对于出口位置的**。GitHub 上那种 6,869 条的订阅，从国内网络看大部分端口/协议根本不通，表现就是"导入后全超时"。
+
+对策是本机再验一遍，产出小体积订阅：
+
+```powershell
+# 需要 mihomo 二进制 + gh 已登录（token 带 gist 权限）
+powershell -NoProfile -File tools\local-refresh.ps1
+```
+
+产物 `data/local-lite.yaml`（约 200 条、50 KB、按本机延迟排序），并自动更新到同一个 gist：
+
+```
+https://gist.githubusercontent.com/wand-clasp-envoy/b55b2118b45dbfc87ed8e2690e6ad6a3/raw/local-lite.yaml
+```
+
+每 3 小时自动刷一次：
+
+```powershell
+schtasks /Create /TN "proxy-lite-refresh" /SC HOURLY /MO 3 /TR ^
+  "powershell -NoProfile -ExecutionPolicy Bypass -File D:\github\proxy-ecosystem-analysis	ools\local-refresh.ps1"
+```
+
+另外，`organised.yaml` 里 `♻️ 自动选择` 包含全部 6,869 条，客户端会做上千次健康检查——这也是"导入后卡死"的常见原因。lite 版把它限制在 100 条以内。
