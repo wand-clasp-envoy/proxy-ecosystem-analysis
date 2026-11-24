@@ -176,11 +176,19 @@ powershell -NoProfile -File tools\local-refresh.ps1
 https://gist.githubusercontent.com/wand-clasp-envoy/b55b2118b45dbfc87ed8e2690e6ad6a3/raw/local-lite.yaml
 ```
 
-每 3 小时自动刷一次：
+每 3 小时自动刷一次（**已注册**，任务名 `proxy-lite-refresh`，Interactive only）：
 
 ```powershell
-schtasks /Create /TN "proxy-lite-refresh" /SC HOURLY /MO 3 /TR ^
-  "powershell -NoProfile -ExecutionPolicy Bypass -File D:\github\proxy-ecosystem-analysis\tools\local-refresh.ps1"
+schtasks /Query  /TN "proxy-lite-refresh" /FO LIST
+schtasks /Run    /TN "proxy-lite-refresh"        # 立即跑一次
+schtasks /Change /TN "proxy-lite-refresh" /DISABLE
+schtasks /Delete /TN "proxy-lite-refresh" /F     # 彻底移除
 ```
+
+实测一轮 **376 秒**：TCP 3,636/6,869 可达 → 复验 600 条 → 308 条通过 → 取 200 条、6 个地区。
+日志 `data/local-refresh.log`（`Start-Transcript` 追加，含每次时间戳与统计）。
+
+> 注意：`schtasks` 在 Git Bash 里会被 MSYS 改写参数（`/Create` → 盘符路径），
+> 需要先 `export MSYS_NO_PATHCONV=1`，或直接在 PowerShell / cmd 里执行。
 
 另外，`organised.yaml` 里 `♻️ 自动选择` 包含全部 6,869 条，客户端会做上千次健康检查——这也是"导入后卡死"的常见原因。lite 版把它限制在 100 条以内。
