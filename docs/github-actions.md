@@ -180,7 +180,7 @@ https://gist.githubusercontent.com/wand-clasp-envoy/b55b2118b45dbfc87ed8e2690e6a
 
 ```powershell
 schtasks /Create /TN "proxy-lite-refresh" /SC HOURLY /MO 3 /TR ^
-  "powershell -NoProfile -ExecutionPolicy Bypass -File D:\github\proxy-ecosystem-analysis	ools\local-refresh.ps1"
+  "powershell -NoProfile -ExecutionPolicy Bypass -File D:\github\proxy-ecosystem-analysis\tools\local-refresh.ps1"
 ```
 
 另外，`organised.yaml` 里 `♻️ 自动选择` 包含全部 6,869 条，客户端会做上千次健康检查——这也是"导入后卡死"的常见原因。lite 版把它限制在 100 条以内。
