@@ -407,12 +407,12 @@ def main():
         doc = yaml.safe_load(f) or {}
     proxies = [p for p in (doc.get("proxies") or []) if isinstance(p, dict)][:a.limit]
     recs = [{"p": dict(p), "md": {}} for p in proxies]
-    recs = probe(recs, binary=a.binary, speed_top=a.speed_top, speed_budget=a.speed_budget)
-    detail = detailed_report(recs, total=len(proxies))
+    probe(recs, binary=a.binary, speed_top=a.speed_top, speed_budget=a.speed_budget)
+    detail = detailed_report(recs, total=len(proxies))   # whole list, flags set in place
     print(json.dumps(detail, ensure_ascii=False, indent=1))
     with open(os.path.join(DATA, "probe_report.json"), "w", encoding="utf-8") as f:
         json.dump(detail, f, ensure_ascii=False, indent=1)
-    doc["proxies"] = [r["p"] for r in recs]
+    doc["proxies"] = [r["p"] for r in recs if r.get("alive")]
     with open(a.output, "w", encoding="utf-8") as f:
         yaml.safe_dump(doc, f, allow_unicode=True, sort_keys=False, width=4096)
     print(f"wrote {a.output} ({len(recs)} nodes)")
