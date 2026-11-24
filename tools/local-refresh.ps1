@@ -13,6 +13,8 @@
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
+New-Item -ItemType Directory -Force -Path (Join-Path $root "data") | Out-Null
+Start-Transcript -Path (Join-Path $root "data\local-refresh.log") -Append | Out-Null
 
 $gist  = "b55b2118b45dbfc87ed8e2690e6ad6a3"
 $full  = "https://gist.githubusercontent.com/wand-clasp-envoy/$gist/raw/organised.yaml"
@@ -30,12 +32,13 @@ if (-not $env:GH_TOKEN) { throw "gh is not logged in (gh auth login)" }
 
 $started = Get-Date
 Write-Host "[$(Get-Date -Format HH:mm:ss)] probing $full from this machine ..."
-python tools\local_lite.py --url $full --keep 200 --probe-cap 600 --speed-top 30
+python -u tools\local_lite.py --url $full --keep 200 --probe-cap 600 --speed-top 30
 if ($LASTEXITCODE -ne 0) { throw "local_lite.py failed" }
 
 # publish only if the result is non-trivial (publish.py enforces --min-proxies)
-python tools\publish.py --gist $gist --file data\local-lite.yaml --min-proxies 20
+python -u tools\publish.py --gist $gist --file data\local-lite.yaml --min-proxies 20
 if ($LASTEXITCODE -ne 0) { throw "publish.py failed" }
 
 Write-Host ("[$(Get-Date -Format HH:mm:ss)] done in {0:N0}s -> local-lite.yaml" -f ((Get-Date) - $started).TotalSeconds)
 Write-Host "subscribe: https://gist.githubusercontent.com/wand-clasp-envoy/$gist/raw/local-lite.yaml"
+Stop-Transcript | Out-Null
