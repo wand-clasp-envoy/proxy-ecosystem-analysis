@@ -36,6 +36,7 @@
 | [dingdingdang22](https://gist.github.com/dingdingdang22/ad3938b6f1c15f139671f87cadc761de) | `all.yaml` | 35 | - | - | - | - | 2025-09-05 | 2026-03-22 |
 | [alanwang776](https://gist.github.com/alanwang776/bb272731c61ccf45007cd0f89bd51138) | `all.yaml` | 32 | - | - | - | - | 2026-11-02 | 2026-11-18 |
 | [1009476063](https://gist.github.com/1009476063/98ee639023acbec7a4b086cc87cd2de7) | `vpn_subs_jianguo_clash.yaml` | 27 | - | - | - | - | 2026-06-22 | 2026-11-23 |
+| [sn1029](https://gist.github.com/sn1029/3776c3e8f57dc010d9562504e760b2ae) | `clash.yaml` | 25 | - | - | - | - | 2026-11-12 | 2026-11-27 |
 | [Mathdeep258](https://gist.github.com/Mathdeep258/007cc1adcae763f9388259f71fea0b40) | `all.yaml` | 24 | - | - | - | - | 2026-07-07 | 2026-11-23 |
 | [sucan2233](https://gist.github.com/sucan2233/7c426c2d0494ce074d41852e509be155) | `xxx-clash.yaml` | 22 | - | - | - | - | 2025-02-06 | 2026-11-23 |
 | [28caitianyi](https://gist.github.com/28caitianyi/a0b0dbfd6a18bac274a64fd468d63cc3) | `clash.yaml` | 22 | - | - | - | - | 2026-11-12 | 2026-11-20 |
